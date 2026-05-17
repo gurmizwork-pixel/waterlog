@@ -754,10 +754,45 @@
     if (currentScreen === 'home') renderHome(state);
   }
 
+  /* ── Notifications ── */
   function sendToSW(msg) {
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage(msg);
     }
+  }
+
+  function checkAndShowReminder(state) {
+    if (!state.reminderEnabled) return;
+    if (Notification.permission !== 'granted') return;
+
+    const now     = new Date();
+    const [h, m]  = state.reminderTime.split(':').map(Number);
+    const reminderMinutes = h * 60 + m;
+    const nowMinutes      = now.getHours() * 60 + now.getMinutes();
+
+    // Only fire if past reminder time today
+    if (nowMinutes < reminderMinutes) return;
+
+    // Only fire if goal not yet hit today
+    if (getTodayTotal(state) >= state.dailyGoal) return;
+
+    // Only fire once per day — store last reminded date
+    const lastReminded = localStorage.getItem('waterlog_last_reminded');
+    const todayStr     = todayKey();
+    if (lastReminded === todayStr) return;
+
+    localStorage.setItem('waterlog_last_reminded', todayStr);
+
+    // Show the notification
+    navigator.serviceWorker.ready.then(reg => {
+      reg.showNotification('💧 WaterLog', {
+        body: "Don't forget to drink water today! You haven't hit your goal yet.",
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: 'waterlog-reminder',
+        renotify: false
+      });
+    });
   }
 
   function toggleReminder() {
@@ -772,10 +807,9 @@
           state.reminderEnabled = true;
           saveState(state);
           renderSettings(state);
-          sendToSW({ type: 'SCHEDULE_REMINDER', time: state.reminderTime });
           showToast('Reminder set for ' + state.reminderTime + ' ✓');
         } else {
-          showToast('Please allow notifications in your browser settings');
+          showToast('Please allow notifications in browser settings');
         }
       });
       return;
@@ -783,7 +817,6 @@
     state.reminderEnabled = false;
     saveState(state);
     renderSettings(state);
-    sendToSW({ type: 'CANCEL_REMINDER' });
     showToast('Reminder disabled');
   }
 
@@ -791,9 +824,6 @@
     const state = getState();
     state.reminderTime = val;
     saveState(state);
-    if (state.reminderEnabled) {
-      sendToSW({ type: 'SCHEDULE_REMINDER', time: val });
-    }
     showToast('Reminder updated to ' + val);
   }
 
@@ -843,12 +873,10 @@
     if (state.adsRemoved) document.getElementById('ad-banner').classList.add('hidden');
     renderHome(state);
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').then(reg => {
-        // Once SW is ready, reschedule reminder if it was on
+      navigator.serviceWorker.register('sw.js').then(() => {
+        // Check reminder every time the app is opened
         navigator.serviceWorker.ready.then(() => {
-          if (state.reminderEnabled && state.reminderTime) {
-            sendToSW({ type: 'SCHEDULE_REMINDER', time: state.reminderTime });
-          }
+          checkAndShowReminder(state);
         });
       }).catch(() => {});
     }
