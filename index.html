@@ -445,14 +445,6 @@
             onchange="saveReminderTime(this.value)">
         </div>
 
-        <div class="setting-item" id="test-notif-row" style="display:none">
-          <div>
-            <div class="setting-label">Test notification</div>
-            <div class="setting-sublabel">Check if notifications work</div>
-          </div>
-          <div class="setting-value" onclick="testNotification()">Send test</div>
-        </div>
-
       </div>
 
       <div class="card">
@@ -714,7 +706,6 @@
     rToggle.classList.toggle('on', state.reminderEnabled);
     const showRows = state.reminderEnabled ? 'flex' : 'none';
     document.getElementById('reminder-time-row').style.display = showRows;
-    document.getElementById('test-notif-row').style.display   = showRows;
 
     const adsGone = state.adsRemoved;
     document.getElementById('remove-ads-btn').style.display  = adsGone ? 'none' : 'block';
@@ -793,32 +784,6 @@
     localStorage.setItem('waterlog_last_reminded', todayKey());
 
     fireNotification('💧 WaterLog', "Don't forget to drink water! You haven't hit your goal yet.");
-  }
-
-  function testNotification() {
-    if (!('Notification' in window)) {
-      showToast('❌ Notifications not supported here');
-      return;
-    }
-    if (Notification.permission !== 'granted') {
-      Notification.requestPermission().then(p => {
-        if (p === 'granted') sendTestNotif();
-        else showToast('❌ Permission denied — enable in browser settings');
-      });
-      return;
-    }
-    sendTestNotif();
-  }
-
-  function sendTestNotif() {
-    navigator.serviceWorker.ready.then(reg => {
-      reg.showNotification('💧 WaterLog', {
-        body: 'Notifications are working! ✓',
-        icon: '/icon-192.png',
-        tag: 'waterlog-test-' + Date.now()  // unique tag so it always shows
-      });
-      showToast('Notification sent — check your notification bar');
-    }).catch(err => showToast('Failed: ' + err.message));
   }
 
   function toggleReminder() {
