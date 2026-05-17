@@ -795,17 +795,31 @@
 
   function testNotification() {
     if (!('Notification' in window)) {
-      showToast('Notifications not supported on this browser');
+      showToast('❌ Notifications not supported in this browser');
       return;
     }
-    if (Notification.permission !== 'granted') {
-      Notification.requestPermission().then(p => {
-        if (p === 'granted') fireNotification('💧 WaterLog', 'Notifications are working! ✓');
-        else showToast('Permission denied — enable in browser settings');
-      });
-      return;
-    }
-    fireNotification('💧 WaterLog', 'Notifications are working! ✓');
+    showToast('Permission status: ' + Notification.permission);
+    setTimeout(() => {
+      if (Notification.permission === 'granted') {
+        try {
+          new Notification('💧 WaterLog', { body: 'Test working! ✓' });
+          showToast('✓ Notification sent via direct API');
+        } catch(e) {
+          showToast('Direct failed: ' + e.message + ' — trying SW...');
+          navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification('💧 WaterLog', { body: 'Test via SW ✓', icon: '/icon-192.png' });
+            showToast('✓ Sent via service worker');
+          }).catch(err => showToast('SW also failed: ' + err.message));
+        }
+      } else if (Notification.permission === 'denied') {
+        showToast('❌ Blocked — go to Samsung Internet site settings and allow notifications');
+      } else {
+        showToast('Requesting permission...');
+        Notification.requestPermission().then(p => {
+          showToast('Permission result: ' + p);
+        });
+      }
+    }, 1500);
   }
 
   function toggleReminder() {
