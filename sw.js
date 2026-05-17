@@ -1,4 +1,4 @@
-const CACHE = 'waterlog-v1';
+const CACHE = 'waterlog-v2';
 const ASSETS = [
   '/',
   '/index.html',
@@ -25,3 +25,44 @@ self.addEventListener('fetch', e => {
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
 });
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      if (list.length > 0) return list[0].focus();
+      return clients.openWindow('/');
+    })
+  );
+});
+
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SCHEDULE_REMINDER') scheduleReminder(e.data.time);
+  if (e.data && e.data.type === 'CANCEL_REMINDER') clearReminder();
+});
+
+let reminderTimer = null;
+
+function clearReminder() {
+  if (reminderTimer) { clearTimeout(reminderTimer); reminderTimer = null; }
+}
+
+function scheduleReminder(timeStr) {
+  clearReminder();
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const now = new Date();
+  const target = new Date();
+  target.setHours(hours, minutes, 0, 0);
+  if (target <= now) target.setDate(target.getDate() + 1);
+  const delay = target.getTime() - now.getTime();
+  reminderTimer = setTimeout(() => {
+    self.registration.showNotification('💧 WaterLog', {
+      body: "Time to drink some water! Stay on your streak.",
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: 'waterlog-reminder',
+      renotify: true
+    });
+    scheduleReminder(timeStr);
+  }, delay);
+}

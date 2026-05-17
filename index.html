@@ -504,7 +504,7 @@
   <div class="modal">
     <h3>Custom amount</h3>
     <input class="modal-input" type="number" id="custom-input"
-      placeholder="e.g. 250" min="1" max="2000" inputmode="numeric">
+      placeholder="e.g. 250" min="1" max="5000" inputmode="numeric">
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeCustomModal()">Cancel</button>
       <button class="btn-confirm" onclick="confirmCustom()">Add water</button>
@@ -575,18 +575,23 @@
 
   function confirmCustom() {
     const val = parseInt(document.getElementById('custom-input').value, 10);
-    if (!val || val < 1 || val > 2000) {
-      showToast('Please enter between 1 and 2000 ml');
+    if (!val || val < 1 || val > 5000) {
+      showToast('Please enter between 1 and 5000 ml');
       return;
     }
     closeCustomModal();
     addWater(val);
   }
 
-  /* ── Streak (counts consecutive days before today that hit goal) ── */
+  /* ── Streak (consecutive days hitting goal, including today if done) ── */
   function getStreak(state) {
     let streak = 0;
     const now = new Date();
+
+    // Count today first
+    if (getTodayTotal(state) >= state.dailyGoal) streak = 1;
+
+    // Then count backwards from yesterday
     for (let i = 1; i <= 365; i++) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
@@ -735,7 +740,9 @@
     const state = getState();
     state.dailyGoal = v;
     saveState(state);
-    showToast('Goal set to ' + v + ' ml');
+    const unit = state.unit;
+    const display = unit === 'oz' ? Math.round(v / 29.574) + ' oz' : v + ' ml';
+    showToast('Goal set to ' + display);
     renderHome(state);
   }
 
@@ -747,32 +754,47 @@
     if (currentScreen === 'home') renderHome(state);
   }
 
+  function sendToSW(msg) {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage(msg);
+    }
+  }
+
   function toggleReminder() {
     const state = getState();
-    if (!state.reminderEnabled && 'Notification' in window) {
+    if (!state.reminderEnabled) {
+      if (!('Notification' in window)) {
+        showToast('Notifications not supported on this browser');
+        return;
+      }
       Notification.requestPermission().then(p => {
         if (p === 'granted') {
           state.reminderEnabled = true;
           saveState(state);
           renderSettings(state);
-          showToast('Reminder enabled ✓');
+          sendToSW({ type: 'SCHEDULE_REMINDER', time: state.reminderTime });
+          showToast('Reminder set for ' + state.reminderTime + ' ✓');
         } else {
-          showToast('Allow notifications to enable reminders');
+          showToast('Please allow notifications in your browser settings');
         }
       });
       return;
     }
-    state.reminderEnabled = !state.reminderEnabled;
+    state.reminderEnabled = false;
     saveState(state);
     renderSettings(state);
-    showToast(state.reminderEnabled ? 'Reminder enabled ✓' : 'Reminder disabled');
+    sendToSW({ type: 'CANCEL_REMINDER' });
+    showToast('Reminder disabled');
   }
 
   function saveReminderTime(val) {
     const state = getState();
     state.reminderTime = val;
     saveState(state);
-    showToast('Reminder set for ' + val);
+    if (state.reminderEnabled) {
+      sendToSW({ type: 'SCHEDULE_REMINDER', time: val });
+    }
+    showToast('Reminder updated to ' + val);
   }
 
   /* ── Monetization placeholders ── */
@@ -821,7 +843,14 @@
     if (state.adsRemoved) document.getElementById('ad-banner').classList.add('hidden');
     renderHome(state);
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js').then(reg => {
+        // Once SW is ready, reschedule reminder if it was on
+        navigator.serviceWorker.ready.then(() => {
+          if (state.reminderEnabled && state.reminderTime) {
+            sendToSW({ type: 'SCHEDULE_REMINDER', time: state.reminderTime });
+          }
+        });
+      }).catch(() => {});
     }
   })();
 </script>
