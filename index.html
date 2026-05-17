@@ -445,6 +445,14 @@
             onchange="saveReminderTime(this.value)">
         </div>
 
+        <div class="setting-item" id="test-notif-row" style="display:none">
+          <div>
+            <div class="setting-label">Test notification</div>
+            <div class="setting-sublabel">Check if notifications work</div>
+          </div>
+          <div class="setting-value" onclick="testNotification()">Send test</div>
+        </div>
+
       </div>
 
       <div class="card">
@@ -704,8 +712,9 @@
 
     const rToggle = document.getElementById('reminder-toggle');
     rToggle.classList.toggle('on', state.reminderEnabled);
-    document.getElementById('reminder-time-row').style.display =
-      state.reminderEnabled ? 'flex' : 'none';
+    const showRows = state.reminderEnabled ? 'flex' : 'none';
+    document.getElementById('reminder-time-row').style.display = showRows;
+    document.getElementById('test-notif-row').style.display   = showRows;
 
     const adsGone = state.adsRemoved;
     document.getElementById('remove-ads-btn').style.display  = adsGone ? 'none' : 'block';
@@ -755,9 +764,13 @@
   }
 
   /* ── Notifications ── */
-  function sendToSW(msg) {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage(msg);
+  function fireNotification(title, body) {
+    try {
+      new Notification(title, { body, icon: '/icon-192.png' });
+    } catch(e) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.showNotification(title, { body, icon: '/icon-192.png', tag: 'waterlog-reminder' });
+      }).catch(() => {});
     }
   }
 
@@ -765,34 +778,34 @@
     if (!state.reminderEnabled) return;
     if (Notification.permission !== 'granted') return;
 
-    const now     = new Date();
-    const [h, m]  = state.reminderTime.split(':').map(Number);
-    const reminderMinutes = h * 60 + m;
+    const now             = new Date();
+    const [h, m]          = state.reminderTime.split(':').map(Number);
     const nowMinutes      = now.getHours() * 60 + now.getMinutes();
+    const reminderMinutes = h * 60 + m;
 
-    // Only fire if past reminder time today
     if (nowMinutes < reminderMinutes) return;
-
-    // Only fire if goal not yet hit today
     if (getTodayTotal(state) >= state.dailyGoal) return;
 
-    // Only fire once per day — store last reminded date
     const lastReminded = localStorage.getItem('waterlog_last_reminded');
-    const todayStr     = todayKey();
-    if (lastReminded === todayStr) return;
+    if (lastReminded === todayKey()) return;
+    localStorage.setItem('waterlog_last_reminded', todayKey());
 
-    localStorage.setItem('waterlog_last_reminded', todayStr);
+    fireNotification('💧 WaterLog', "Don't forget to drink water! You haven't hit your goal yet.");
+  }
 
-    // Show the notification
-    navigator.serviceWorker.ready.then(reg => {
-      reg.showNotification('💧 WaterLog', {
-        body: "Don't forget to drink water today! You haven't hit your goal yet.",
-        icon: '/icon-192.png',
-        badge: '/icon-192.png',
-        tag: 'waterlog-reminder',
-        renotify: false
+  function testNotification() {
+    if (!('Notification' in window)) {
+      showToast('Notifications not supported on this browser');
+      return;
+    }
+    if (Notification.permission !== 'granted') {
+      Notification.requestPermission().then(p => {
+        if (p === 'granted') fireNotification('💧 WaterLog', 'Notifications are working! ✓');
+        else showToast('Permission denied — enable in browser settings');
       });
-    });
+      return;
+    }
+    fireNotification('💧 WaterLog', 'Notifications are working! ✓');
   }
 
   function toggleReminder() {
