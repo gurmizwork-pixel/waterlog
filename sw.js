@@ -1,8 +1,10 @@
-const CACHE = 'waterlog-v3';
+const CACHE = 'waterlog-v4';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
+  '/waterlog/',
+  '/waterlog/index.html',
+  '/waterlog/manifest.json',
+  '/waterlog/icon-192.png',
+  '/waterlog/icon-512.png',
   'https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap'
 ];
 
@@ -26,13 +28,12 @@ self.addEventListener('fetch', e => {
   );
 });
 
-// Open the app when notification is tapped
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       if (list.length > 0) return list[0].focus();
-      return clients.openWindow('/');
+      return clients.openWindow('/waterlog/');
     })
   );
 });
