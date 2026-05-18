@@ -1,16 +1,19 @@
-const CACHE = 'waterlog-v4';
+const CACHE = 'waterlog-v5';
+
+// Only cache local files — never external URLs
 const ASSETS = [
   '/waterlog/',
   '/waterlog/index.html',
   '/waterlog/manifest.json',
   '/waterlog/icon-192.png',
-  '/waterlog/icon-512.png',
-  'https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap'
+  '/waterlog/icon-512.png'
 ];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then(c => c.addAll(ASSETS))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -24,7 +27,9 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    caches.match(e.request)
+      .then(cached => cached || fetch(e.request))
+      .catch(() => caches.match('/waterlog/index.html'))
   );
 });
 
