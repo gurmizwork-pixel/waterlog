@@ -1,4 +1,4 @@
-const CACHE = 'waterlog-v5';
+const CACHE = 'waterlog-v6';
 
 // Only cache local files — never external URLs
 const ASSETS = [
